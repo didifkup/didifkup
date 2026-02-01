@@ -16,7 +16,7 @@ export function UpgradeCancelPage() {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-3">
-          No worries — nothing was charged.
+          No worries — try again
         </h1>
         <p className="text-gray-600 mb-8">
           You can upgrade anytime if you want unlimited checks.

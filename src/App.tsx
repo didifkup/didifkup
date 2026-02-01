@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
@@ -34,6 +34,7 @@ import { StickersPage } from '@/pages/Stickers';
 import { SignInPage } from '@/pages/SignInPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
 import { UpgradeCancelPage } from '@/pages/UpgradeCancelPage';
+import { UpgradeSuccessPage } from '@/pages/UpgradeSuccessPage';
 import { PricingPage } from '@/pages/PricingPage';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -98,146 +99,6 @@ interface AnalysisResult {
     neutral: string;
     firm: string;
   };
-}
-
-/** Generate analysis text based on verdict + tone. */
-function generateAnalysisText(verdict: RiskLevel, tone: Tone): Omit<AnalysisResult, 'verdict'> {
-  const variants = {
-    LOW: {
-      nice: {
-        summary: "You're totally fine! This is nothing to worry about.",
-        reasons: [
-          "Your response was thoughtful and appropriate",
-          "They seem comfortable with how things went",
-          "You handled this really well"
-        ],
-        nextMove: "Keep being yourself — you're doing great",
-        followUpTexts: {
-          soft: "Hey! Just wanted to check in 😊",
-          neutral: "Hey, how's it going?",
-          firm: "Hey, wanted to follow up on earlier"
-        }
-      },
-      real: {
-        summary: "You're overthinking this one. Your response was totally normal.",
-        reasons: [
-          "Your tone matched the conversation energy",
-          "They responded positively after",
-          "Nothing you said was out of pocket"
-        ],
-        nextMove: "Do nothing — you're good",
-        followUpTexts: {
-          soft: "Hey! Just wanted to check in 😊",
-          neutral: "Hey, how's it going?",
-          firm: "Hey, can we talk about earlier?"
-        }
-      },
-      savage: {
-        summary: "Bro you're fine. Touch grass.",
-        reasons: [
-          "Literally nothing happened",
-          "They don't even remember this",
-          "You're spiraling over air"
-        ],
-        nextMove: "Log off and go outside",
-        followUpTexts: {
-          soft: "Yo what's good",
-          neutral: "Hey",
-          firm: "We need to talk about that?"
-        }
-      }
-    },
-    MEDIUM: {
-      nice: {
-        summary: "It's a bit awkward, but you can absolutely recover from this.",
-        reasons: [
-          "These things happen to everyone",
-          "You can clarify if needed",
-          "The relationship isn't damaged"
-        ],
-        nextMove: "Give it a day, then check in casually if you want",
-        followUpTexts: {
-          soft: "Hey! I've been thinking about our chat earlier 😊",
-          neutral: "Hey, about earlier — just wanted to clear the air",
-          firm: "Can we talk about what happened?"
-        }
-      },
-      real: {
-        summary: "Awkward? Yes. The end of the world? No.",
-        reasons: [
-          "It happens to literally everyone",
-          "They probably won't even notice the timestamp",
-          "You can play it off if they mention it"
-        ],
-        nextMove: "Do nothing unless they bring it up",
-        followUpTexts: {
-          soft: "Haha busted — I fell down an IG rabbit hole 😅",
-          neutral: "Lol yeah I was scrolling way back",
-          firm: "Yeah I was looking at your old posts, sue me"
-        }
-      },
-      savage: {
-        summary: "Yeah that was cringe but you'll live.",
-        reasons: [
-          "Everyone's done worse",
-          "They're not losing sleep over this",
-          "It's only weird if you make it weird"
-        ],
-        nextMove: "Act normal. If they clown you, own it",
-        followUpTexts: {
-          soft: "My bad lol that was awkward",
-          neutral: "Yeah that was a moment huh",
-          firm: "Alright yeah I fumbled. Moving on"
-        }
-      }
-    },
-    HIGH: {
-      nice: {
-        summary: "This is tricky, but there are ways to handle it thoughtfully.",
-        reasons: [
-          "You can still address this with care",
-          "People appreciate genuine apologies",
-          "It's not too late to make it right"
-        ],
-        nextMove: "Reach out soon with a sincere message",
-        followUpTexts: {
-          soft: "Hey, I wanted to apologize for earlier. That wasn't cool of me.",
-          neutral: "I realize I messed up earlier. Can we talk?",
-          firm: "I need to own that I handled that badly. Let's talk."
-        }
-      },
-      real: {
-        summary: "Not gonna lie, this is bad. But here's what to do.",
-        reasons: [
-          "You crossed a line",
-          "They're probably upset",
-          "Ignoring it will make it worse"
-        ],
-        nextMove: "Apologize directly and give them space",
-        followUpTexts: {
-          soft: "I'm really sorry about what I said. I was out of line.",
-          neutral: "I messed up. I'm sorry. Can we talk when you're ready?",
-          firm: "I was wrong. I'm sorry. Let me know if you want to talk."
-        }
-      },
-      savage: {
-        summary: "Yikes. You cooked. Here's damage control.",
-        reasons: [
-          "That was objectively bad",
-          "They're definitely mad",
-          "You need to fix this ASAP"
-        ],
-        nextMove: "Apologize now. Don't wait. Don't make excuses.",
-        followUpTexts: {
-          soft: "I'm so sorry. I was completely wrong. Can we talk?",
-          neutral: "I messed up bad. I'm sorry. Let me make it right.",
-          firm: "I was dead wrong. I'm sorry. Let's talk when you're ready."
-        }
-      }
-    }
-  };
-
-  return variants[verdict][tone];
 }
 
 const VerdictBadge: React.FC<{ level: RiskLevel; showConfetti?: boolean }> = ({ level, showConfetti = false }) => {
@@ -1750,7 +1611,7 @@ export default function DidIFkUpApp() {
           <Route path="/pricing" element={<Layout><PricingPage /></Layout>} />
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/upgrade/success" element={<Navigate to="/app?upgrade=success" replace />} />
+          <Route path="/upgrade/success" element={<UpgradeSuccessPage />} />
           <Route path="/upgrade/cancel" element={<UpgradeCancelPage />} />
         </Routes>
       </AuthProvider>

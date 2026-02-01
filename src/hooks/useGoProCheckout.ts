@@ -47,6 +47,8 @@ export function useGoProCheckout() {
       }
       if (data?.url) {
         window.location.href = data.url;
+      } else {
+        setError('No checkout URL returned. Try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
