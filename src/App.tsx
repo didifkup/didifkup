@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
@@ -31,63 +31,16 @@ import { BackgroundFX } from '@/components/BackgroundFX';
 import { CopyToast } from '@/components/CopyToast';
 import { DidIFkUpMascot } from '@/components/mascot/DidIFkUpMascot';
 import { StickersPage } from '@/pages/Stickers';
-import { SignInPage } from '@/pages/SignInPage';
-import { OnboardingPage } from '@/pages/OnboardingPage';
-import { UpgradeCancelPage } from '@/pages/UpgradeCancelPage';
-import { UpgradeSuccessPage } from '@/pages/UpgradeSuccessPage';
 import { PricingPage } from '@/pages/PricingPage';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { useSubscription } from '@/hooks/useSubscription';
-import { useDailyUsage } from '@/hooks/useDailyUsage';
-import { useHistory, type HistoryItem } from '@/hooks/useHistory';
-import { useGoProCheckout } from '@/hooks/useGoProCheckout';
-
-/** Redirects to /onboarding when user is logged in but hasn't completed onboarding. */
-const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigate = useNavigate();
-  const { user, profile, loading, profileLoading } = useAuth();
-
-  React.useEffect(() => {
-    if (loading) return;
-    if (!user) return;
-    if (profileLoading || !profile) return;
-    if (!profile.onboarding_completed) {
-      navigate('/onboarding', { replace: true });
-    }
-  }, [user, profile, loading, profileLoading, navigate]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center">
-        <div className="animate-pulse text-gray-500 font-bold">Loading…</div>
-      </div>
-    );
-  }
-  if (!user) return <>{children}</>;
-  if (profileLoading || !profile) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center">
-        <div className="animate-pulse text-gray-500 font-bold">Loading…</div>
-      </div>
-    );
-  }
-  if (!profile.onboarding_completed) return null;
-  return <>{children}</>;
-};
+import { SignInPage } from '@/pages/SignInPage';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { cn, cardPremium } from '@/lib/utils';
 
 type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 type Tone = 'nice' | 'real' | 'savage';
 
-const verdictShort: Record<RiskLevel, string> = {
-  LOW: 'LOW',
-  MEDIUM: 'MED',
-  HIGH: 'HIGH',
-};
-
-function buildHistoryCaption(verdict: RiskLevel, summary: string): string {
-  return `DidIFkUp verdict: ${verdictShort[verdict]} 💀\n${summary}\nTry it → didifkup.com`;
-}
 
 interface AnalysisResult {
   verdict: RiskLevel;
@@ -556,12 +509,12 @@ interface LandingPageProps {
 const LandingPage: React.FC<LandingPageProps> = ({ onAnalyze, onSeeExample }) => {
   const exampleRef = React.useRef<HTMLElement | null>(null);
   const [showExample, setShowExample] = useState(false);
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [mascotMood, setMascotMood] = useState<'idle' | 'loading' | 'low' | 'medium' | 'high'>('idle');
-  const { handleGoPro, goProLoading, goProError } = useGoProCheckout();
   const { pathname, hash } = useLocation();
 
   // Deep link: /#example — open example and scroll to it (e.g. "link in bio → see example")
-  useEffect(() => {
+  React.useEffect(() => {
     if (pathname !== '/' || hash !== '#example') return;
     setShowExample(true);
     setMascotMood('low');
@@ -831,127 +784,129 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAnalyze, onSeeExample }) =>
                   </li>
                 </ul>
                 <Button
-                  onClick={handleGoPro}
-                  disabled={goProLoading}
+                  onClick={() => setShowPaymentsModal(true)}
                   className="btn-cta-primary w-full bg-lime-500 hover:bg-lime-600 py-6 text-lg shadow-lg shadow-lime-500/25"
                 >
-                  {goProLoading ? 'Redirecting to checkout…' : 'Go Pro — $12/mo'}
+                  Go Pro — $12/mo
                 </Button>
-                {goProError && (
-                  <p className="mt-3 text-sm text-red-600 font-medium text-center">{goProError}</p>
-                )}
               </div>
             </Card>
           </motion.div>
         </div>
       </section>
+
+      <Dialog open={showPaymentsModal} onOpenChange={setShowPaymentsModal}>
+        <DialogContent className="rounded-3xl max-w-md overflow-hidden">
+          <DialogHeader className="relative z-10">
+            <DialogTitle className="text-2xl font-bold text-gray-900 text-center">
+              Coming soon
+            </DialogTitle>
+            <DialogDescription className="text-center text-gray-600 mt-2">
+              Payments are coming back. Check back later or try the app free in the meantime.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-4 pb-2">
+            <Button
+              onClick={() => setShowPaymentsModal(false)}
+              className="rounded-2xl px-6 py-3 font-bold bg-lime-500 hover:bg-lime-600 text-white"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
+/** Mock analysis function — returns a demo result after a delay */
+function generateMockAnalysis(tone: Tone): AnalysisResult {
+  const verdicts: RiskLevel[] = ['LOW', 'MEDIUM', 'HIGH'];
+  const verdict = verdicts[Math.floor(Math.random() * verdicts.length)];
+  
+  const summaries: Record<RiskLevel, string[]> = {
+    LOW: [
+      "You're overthinking this. You're fine.",
+      "Honestly? Not a big deal at all.",
+      "This is your anxiety talking, not reality."
+    ],
+    MEDIUM: [
+      "It's awkward but recoverable.",
+      "Could go either way — tread lightly.",
+      "Not ideal, but not the end of the world."
+    ],
+    HIGH: [
+      "Yeah... this one's a bit rough.",
+      "You might want to do some damage control.",
+      "This needs addressing sooner rather than later."
+    ]
+  };
+
+  const reasons: Record<RiskLevel, string[]> = {
+    LOW: [
+      "The context makes your response totally reasonable",
+      "They probably didn't even notice what you're worried about",
+      "Most people wouldn't think twice about this"
+    ],
+    MEDIUM: [
+      "The timing wasn't great",
+      "Your tone might have come across differently than intended",
+      "There's some ambiguity that could be misread"
+    ],
+    HIGH: [
+      "The other person's reaction suggests they're upset",
+      "This touched on something sensitive",
+      "The silence is probably not a good sign"
+    ]
+  };
+
+  const nextMoves: Record<RiskLevel, string> = {
+    LOW: "Do nothing — seriously, you're good.",
+    MEDIUM: "Give it a day, then send a casual follow-up.",
+    HIGH: "Address it directly — waiting will make it worse."
+  };
+
+  const toneModifiers: Record<Tone, { soft: string; neutral: string; firm: string }> = {
+    nice: { soft: "Hey, just thinking about you 💛", neutral: "Hope you're doing okay!", firm: "Can we chat when you have a moment?" },
+    real: { soft: "Hey, wanted to check in", neutral: "Hey, how's it going?", firm: "We should probably talk about earlier" },
+    savage: { soft: "So... we good?", neutral: "Yo, what's up", firm: "Alright let's address the elephant in the room" }
+  };
+
+  return {
+    verdict,
+    summary: summaries[verdict][Math.floor(Math.random() * summaries[verdict].length)],
+    reasons: reasons[verdict],
+    nextMove: nextMoves[verdict],
+    followUpTexts: toneModifiers[tone]
+  };
+}
+
 const AppPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { session, profile, user, refreshSession } = useAuth();
-  const { isPro, refetch: refetchSubscription } = useSubscription(user?.id);
-  const { remaining, loading: usageLoading, refetch: refetchUsage } = useDailyUsage(user?.id, isPro);
-  const { items: historyItems, loading: historyLoading, refetch: refetchHistory } = useHistory(user?.id);
-  const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [spiralMode, setSpiralMode] = useState(false);
   const [mascotMood, setMascotMood] = useState<'idle' | 'loading' | 'low' | 'medium' | 'high'>('idle');
   const [tone, setTone] = useState<Tone>('real');
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (searchParams.get('upgrade') !== 'success' || !user) return;
-    setShowUpgradeSuccess(true);
-    setSearchParams({}, { replace: true });
-    const t1 = setTimeout(() => setShowUpgradeSuccess(false), 4000);
-
-    refreshSession().then(() => {
-      refetchSubscription();
-      refetchUsage();
-    });
-    const t2 = setTimeout(() => refetchSubscription(), 1500);
-    const t3 = setTimeout(() => refetchSubscription(), 3500);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [searchParams, setSearchParams, refetchSubscription, refetchUsage, refreshSession, user]);
-
-  useEffect(() => {
-    if (profile?.prefs) {
-      if (profile.prefs.spiralModeDefault != null) setSpiralMode(profile.prefs.spiralModeDefault);
-      if (profile.prefs.tone) setTone(profile.prefs.tone as Tone);
-    }
-  }, [profile?.prefs]);
   const [happened, setHappened] = useState('');
   const [youDid, setYouDid] = useState('');
   const [theyDid, setTheyDid] = useState('');
   const [relationship, setRelationship] = useState('friend');
   const [context, setContext] = useState('texting');
-  const { handleGoPro, goProLoading, goProError } = useGoProCheckout();
 
   const handleAnalyze = async () => {
-    if (!session?.access_token) {
-      navigate('/signin');
-      return;
-    }
-    if (!isPro && remaining === 0) {
-      setShowPaywall(true);
-      return;
-    }
-    setError(null);
     setAnalyzing(true);
     setMascotMood('loading');
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          happened,
-          youDid,
-          theyDid,
-          relationship,
-          context,
-          tone,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        navigate('/signin');
-        return;
-      }
-      if (res.status === 402) {
-        setShowPaywall(true);
-        refetchUsage();
-        return;
-      }
-      if (!res.ok) {
-        setError(data?.error ?? data?.message ?? 'Something went wrong');
-        return;
-      }
-      setResult(data as AnalysisResult);
-      setMascotMood((data.verdict?.toLowerCase() ?? 'low') as 'idle' | 'loading' | 'low' | 'medium' | 'high');
-      refetchUsage();
-      refetchHistory();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
-    } finally {
-      setAnalyzing(false);
-    }
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    
+    const mockResult = generateMockAnalysis(tone);
+    setResult(mockResult);
+    setMascotMood(mockResult.verdict.toLowerCase() as 'low' | 'medium' | 'high');
+    setAnalyzing(false);
   };
 
   const handleCopy = (text: string, key: string) => {
@@ -978,32 +933,10 @@ const AppPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <AnimatePresence>
-            {showUpgradeSuccess && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="absolute top-4 right-4 z-20 rounded-full bg-lime-500 px-4 py-2 text-sm font-bold text-white shadow-lg"
-              >
-                You're Pro now! 🎉
-              </motion.div>
-            )}
-          </AnimatePresence>
           <motion.div
-            className={`px-4 py-2 rounded-full font-bold text-sm shadow-lg ${
-              !isPro && remaining === 0 ? 'bg-red-500 text-white' : 'bg-lime-500 text-white'
-            }`}
-            animate={!isPro && remaining === 0 ? { scale: [1, 1.1, 1] } : {}}
-            transition={{ duration: 0.5, repeat: !isPro && remaining === 0 ? Infinity : 0, repeatDelay: 2 }}
+            className="px-4 py-2 rounded-full font-bold text-sm shadow-lg bg-lime-500 text-white"
           >
-            {usageLoading ? (
-              '…'
-            ) : isPro ? (
-              'Unlimited'
-            ) : (
-              `Checks left: ${remaining}/2`
-            )}
+            Demo Mode
           </motion.div>
         </div>
         <div className="flex justify-center mb-8">
@@ -1126,11 +1059,6 @@ const AppPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-              {error && (
-                <p className="text-sm text-red-600 font-medium bg-red-50 px-4 py-3 rounded-xl border border-red-200">
-                  {error}
-                </p>
-              )}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -1297,163 +1225,9 @@ const AppPage: React.FC = () => {
                 </Card>
               </motion.div>
             )}
-            {user && (
-              <Card className={cn(cardPremium, "p-6 mt-6 bg-white")}>
-                <h4 className="font-bold text-lg mb-4 text-gray-900 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-purple-500" />
-                  History
-                </h4>
-                {historyLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
-                    ))}
-                  </div>
-                ) : historyItems.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No verdicts yet. Run one above!</p>
-                ) : (
-                  <ul className="space-y-2 max-h-[320px] overflow-y-auto">
-                    {historyItems.map((item) => (
-                      <li key={item.id}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedHistory(item)}
-                          className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 hover:border-gray-200 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs text-gray-500">
-                              {new Date(item.created_at).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                            <span
-                              className={cn(
-                                'text-xs font-bold px-2 py-0.5 rounded-full',
-                                item.output.verdict === 'LOW' && 'bg-green-100 text-green-700',
-                                item.output.verdict === 'MEDIUM' && 'bg-orange-100 text-orange-700',
-                                item.output.verdict === 'HIGH' && 'bg-red-100 text-red-700'
-                              )}
-                            >
-                              {verdictShort[item.output.verdict]}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700 line-clamp-2">{item.output.summary}</p>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            )}
           </div>
         </div>
       </div>
-
-      <Dialog open={!!selectedHistory} onOpenChange={(open) => !open && setSelectedHistory(null)}>
-        <DialogContent className="rounded-3xl max-w-lg max-h-[90vh] overflow-y-auto">
-          {selectedHistory && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-2">
-                  <VerdictBadge level={selectedHistory.output.verdict} showConfetti={false} />
-                  <span className="text-sm text-gray-500">
-                    {new Date(selectedHistory.created_at).toLocaleString(undefined, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </span>
-                </div>
-                <p className="text-lg text-gray-800 font-medium">{selectedHistory.output.summary}</p>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <h4 className="font-bold text-sm mb-2 text-gray-700">Reasons</h4>
-                  <ul className="space-y-2">
-                    {selectedHistory.output.reasons.map((r, i) => (
-                      <li key={i} className="flex items-start gap-2 text-gray-600">
-                        <Check className="w-4 h-4 text-lime-500 flex-shrink-0 mt-0.5" />
-                        {r}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm mb-2 text-gray-700">Next Move</h4>
-                  <p className="text-gray-600">{selectedHistory.output.nextMove}</p>
-                </div>
-                <div className="relative pt-4 border-t">
-                  <CopyToast show={copiedIndex === 'history-caption'} className="-top-10" />
-                  <Button
-                    variant="outline"
-                    className="w-full rounded-xl font-bold"
-                    onClick={() =>
-                      handleCopy(
-                        buildHistoryCaption(selectedHistory.output.verdict, selectedHistory.output.summary),
-                        'history-caption'
-                      )
-                    }
-                  >
-                    {copiedIndex === 'history-caption' ? (
-                      <Check className="w-4 h-4 mr-2 text-lime-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 mr-2" />
-                    )}
-                    Copy caption
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPaywall} onOpenChange={setShowPaywall}>
-        <DialogContent className="rounded-3xl max-w-md overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent pointer-events-none" />
-          <DialogHeader className="relative z-10">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', duration: 0.5 }}
-              className="flex justify-center mb-4"
-            >
-              <div className="w-20 h-20 bg-gradient-to-br from-lime-400 to-teal-400 rounded-full flex items-center justify-center">
-                <Sparkles className="w-10 h-10 text-white" />
-              </div>
-            </motion.div>
-            <DialogTitle className="text-3xl font-black text-center mb-2">
-              You're out of checks for today 😅
-            </DialogTitle>
-            <DialogDescription className="text-center text-lg">
-              Want unlimited verdicts + history?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-6 relative z-10">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                onClick={handleGoPro}
-                disabled={goProLoading}
-                className="w-full bg-gradient-to-r from-lime-500 to-teal-500 hover:from-lime-600 hover:to-teal-600 text-white rounded-2xl py-6 text-xl font-bold shadow-lg"
-              >
-                {goProLoading ? 'Redirecting to checkout…' : 'Go Pro — $12/month'}
-              </Button>
-              {goProError && (
-                <p className="mt-3 text-sm text-red-600 font-medium text-center">{goProError}</p>
-              )}
-            </motion.div>
-            <Button
-              variant="ghost"
-              className="w-full rounded-2xl py-6 text-lg font-bold hover:bg-gray-100"
-              onClick={() => setShowPaywall(false)}
-            >
-              Not now
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
@@ -1471,7 +1245,6 @@ const NavLinkItem: React.FC<{
 
 const Navigation: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
 
   const closeMenu = () => setMobileMenuOpen(false);
 
@@ -1496,24 +1269,9 @@ const Navigation: React.FC = () => {
               <NavLinkItem to="/pricing" className="text-lg font-bold text-gray-700 hover:text-lime-500 transition-colors">
                 Pricing
               </NavLinkItem>
-              <button className="text-lg font-bold text-gray-700 hover:text-lime-500 transition-colors">
-                How It Works
-              </button>
-              {user ? (
-                <Button
-                  variant="outline"
-                  onClick={() => signOut()}
-                  className="rounded-2xl px-6 font-bold border-2 border-gray-300 hover:border-lime-500"
-                >
-                  Sign Out
-                </Button>
-              ) : (
-                <NavLinkItem to="/signin">
-                  <Button className="bg-lime-500 hover:bg-lime-600 text-white rounded-2xl px-6 font-bold">
-                    Sign In
-                  </Button>
-                </NavLinkItem>
-              )}
+              <NavLinkItem to="/signin" className="text-lg font-bold text-gray-700 hover:text-lime-500 transition-colors">
+                Sign In
+              </NavLinkItem>
             </div>
             <button
               className="md:hidden"
@@ -1542,24 +1300,9 @@ const Navigation: React.FC = () => {
                 <NavLinkItem to="/pricing" className="block w-full text-left text-lg font-bold text-gray-700 py-2" onClick={closeMenu}>
                   Pricing
                 </NavLinkItem>
-                <button className="block w-full text-left text-lg font-bold text-gray-700 py-2">
-                  How It Works
-                </button>
-                {user ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => { signOut(); closeMenu(); }}
-                    className="w-full rounded-2xl font-bold border-2"
-                  >
-                    Sign Out
-                  </Button>
-                ) : (
-                  <NavLinkItem to="/signin" onClick={closeMenu}>
-                    <Button className="w-full bg-lime-500 hover:bg-lime-600 text-white rounded-2xl font-bold">
-                      Sign In
-                    </Button>
-                  </NavLinkItem>
-                )}
+                <NavLinkItem to="/signin" className="block w-full text-left text-lg font-bold text-gray-700 py-2" onClick={closeMenu}>
+                  Sign In
+                </NavLinkItem>
               </div>
             </motion.div>
           )}
@@ -1590,29 +1333,15 @@ export default function DidIFkUpApp() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Analytics />
+        <SpeedInsights />
         <Routes>
           <Route path="/" element={<LandingRoute />} />
-          <Route
-            path="/app"
-            element={
-              <OnboardingGuard>
-                <Layout><AppPage /></Layout>
-              </OnboardingGuard>
-            }
-          />
-          <Route
-            path="/stickers"
-            element={
-              <OnboardingGuard>
-                <Layout><StickersPage /></Layout>
-              </OnboardingGuard>
-            }
-          />
+          <Route path="/app" element={<Layout><AppPage /></Layout>} />
+          <Route path="/stickers" element={<Layout><StickersPage /></Layout>} />
           <Route path="/pricing" element={<Layout><PricingPage /></Layout>} />
-          <Route path="/signin" element={<SignInPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/upgrade/success" element={<UpgradeSuccessPage />} />
-          <Route path="/upgrade/cancel" element={<UpgradeCancelPage />} />
+          <Route path="/signin" element={<Layout><SignInPage /></Layout>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
